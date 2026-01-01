@@ -1,0 +1,11 @@
+# Ignore everything
+*
+
+# But not .ipynb files
+!*.ipynb
+
+# But allow requirements file
+!requirements.txt
+
+# But not .gitignore itself
+!.gitignore
