@@ -9,3 +9,9 @@
 
 # But not .gitignore itself
 !.gitignore
+
+# Ignore this specific notebook
+backup.ipynb
+
+# Ignore all .parquet files
+*.parquet
