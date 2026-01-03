@@ -5,6 +5,8 @@ An equity trading strategy based on Andreas Clenow's book "Stocks on the Move"
 
 This script runs a historical backtest of a **weekly, long-only trend strategy** on a tradable S&P 500 universe.
 
+Trade generator files: generate weekly trading signals
+
 Each week it:
 1) **Ranks stocks by trend strength** (a regression slope signal),
 2) **Keeps only the best names** (top percentile),
@@ -166,3 +168,18 @@ saving per-ticker CSVs in ./2-all_prices/sharadar_sep_full. Loads the membership
 daily matrix, fetches data in chunks with API key configured via NASDAQ_DATA_LINK_API_KEY, and
 prints diagnostics for missing data, short histories after 1998, stale prices (>30 days), very
 late starts, very early terminations, and large gaps (>10 days) between trading days.
+
+`3-adjusted_All_Prices_OHLC.ipynb`
+Scans raw SHARADAR/SEP CSVs for all tickers, validates required fields and date continuity,
+computes split-adjusted OHLC using closeadj-derived factors, and writes Parquet outputs to
+./3-adjusted_All_Prices_OHLC. Logs validation issues (missing columns, nonpositive prices,
+invalid dates, large gaps, adj_factor jumps, processing errors) to a timestamped CSV in
+./system_verification/3-adjusted_All_Prices_OHLC.
+
+`4-ATR20_adjusted_All_Prices.ipynb`
+
+Computes 20-day ATR from adjusted OHLC parquet files, validating date order and required columns,
+logging issues (missing data, non-monotonic dates, insufficient history, negative TR, ATR spikes)
+to a timestamped CSV in ./system_verification/4-ATR20_adjusted_All_Prices. Reads per-ticker inputs
+from ./3-adjusted_All_Prices_OHLC, writes ATR20-enriched parquet outputs to ./4-ATR20_adjusted_All_Prices.
+
