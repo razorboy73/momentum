@@ -128,6 +128,12 @@ This one is super useful for research/debugging: it includes **all top-ranked na
 
 Includes CAGR, vol, Sharpe/Sortino, max drawdown, Calmar, plus year-by-year comparison vs SPY.
 
+# File Listings
+`0-list_notebooks.ipynb`
+Script to list all Jupyter notebook (.ipynb) files in a directory.   Used for automated execution scripts.
+
+`0a-execution_script.ipynb`
+Automates the data pull and the back testing
 
 `1-SP500MEMBERSHIPBUILDER.ipynb`
 Builds a daily S&P 500 membership matrix from SHARADAR/SP500 events via Nasdaq Data Link.
@@ -135,4 +141,28 @@ Loads the API key from NASDAQ_DATA_LINK_API_KEY, downloads constituent add/remov
 simulates daily membership across all business days in the event range, and saves the full
 membership matrix to Parquet at ./1-sp500_membership_daily_matrix/sp500_membership_full.parquet.
 Also computes membership metadata (first/last/exit/current status), reports recent additions
-and removals, and writes a timestamped diagnostics CSV to system_verification/1-SP500MEMBERSHIPBUILDER.
+and removals, and writes a timestamped diagnostics CSV to system_verification/
+
+`1-SP500MEMBERSHIPBUILDER.`
+
+Consumes the daily S&P 500 membership matrix Parquet, computes first join and last exit dates
+per ticker, flags today’s additions/removals and recent changes within RECENT_WINDOW, and saves
+the join/exit table to Parquet and CSV alongside a diagnostics CSV of detected events.
+
+`2a-Incremental_price_fetch.ipynb`
+
+Incrementally updates SHARADAR SEP price files for all tickers in the S&P 500 membership matrix.
+Loads the Nasdaq Data Link API key, fetches full histories for missing tickers and only new rows
+after the latest date for existing files, warns when data is stale beyond MAX_STALE_DAYS, and
+persists per-ticker CSVs in ./2-all_prices/sharadar_sep_full.
+
+Use case: run after executing 2b-Bootrap_All_Prices.ipynb to keep SHARADAR SEP data up to date.
+
+`2b-Bootstrap_All_Prices.ipynb`
+Run this script when initializing the system to pull all the prices
+
+Downloads full SHARADAR/SEP price history for every ticker that has ever appeared in the S&P 500,
+saving per-ticker CSVs in ./2-all_prices/sharadar_sep_full. Loads the membership list from the
+daily matrix, fetches data in chunks with API key configured via NASDAQ_DATA_LINK_API_KEY, and
+prints diagnostics for missing data, short histories after 1998, stale prices (>30 days), very
+late starts, very early terminations, and large gaps (>10 days) between trading days.
