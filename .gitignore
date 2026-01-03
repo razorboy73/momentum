@@ -7,6 +7,8 @@
 # But allow requirements file
 !requirements.txt
 
+!README.md
+
 # But not .gitignore itself
 !.gitignore
 

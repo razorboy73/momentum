@@ -1,0 +1,138 @@
+An equity trading strategy based on Andreas Clenow's book "Stocks on the Move"
+
+# Weekly Regression Trend Strategy (S&P 500)
+**SPY 200DMA regime filter • Inverse-ATR sizing • Position cap • Turnover controls • Wed plan / Thu execute**
+
+This script runs a historical backtest of a **weekly, long-only trend strategy** on a tradable S&P 500 universe.
+
+Each week it:
+1) **Ranks stocks by trend strength** (a regression slope signal),
+2) **Keeps only the best names** (top percentile),
+3) **Sizes positions by risk** (inverse ATR volatility),
+4) **Optionally blocks new buying** when the market regime is bearish (SPY below 200DMA),
+5) **Trades only when changes are meaningful** (drift + minimum trade size + minimum new position).
+
+---
+
+## How the strategy works (plain English)
+
+### 1) Wednesday: “Plan” (no lookahead)
+On **Wednesday close**, the system:
+- Checks the **SPY regime** (above/below 200DMA)
+- Ranks all eligible stocks by `slope_adj`
+- Selects the **top `TOP_PERCENTILE`** stocks (default: top 5%)
+- Computes **target portfolio weights** using inverse ATR (lower ATR → larger weight)
+- Applies a **max position cap** (e.g., 12%)
+- Converts target weights into **target shares** using Wednesday close prices (proxy)
+
+It then builds a list of trades to execute the next trading day.
+
+### 2) Thursday: “Execute”
+On **Thursday open**, the system executes the planned trades:
+- **SELLS first**, then **BUYS**
+- If a ticker’s open price is missing, it falls back to last known close
+- Enforces a **cash reserve floor** before buying
+
+### 3) Daily: Mark-to-market
+Every day it computes portfolio value using **close prices** to create an equity curve.
+
+---
+
+## The big knobs (major variables)
+
+### A) Signal & Lookbacks (upstream inputs)
+These are **conceptually part of the system**, but the script *consumes them precomputed*:
+
+- **Regression lookback (signal generation)**  
+  `slope_adj` is assumed to come from a regression run over a fixed window (example: 90/126/252 trading days).  
+  ✅ Recommended to document as:
+  - `REGRESSION_LOOKBACK_DAYS = <N>`
+
+- **ATR lookback (volatility sizing)**  
+  The script uses ATR values loaded from files (currently `atr20`).  
+  ✅ Recommended to document as:
+  - `ATR_LOOKBACK_DAYS = 20`
+
+> If you want these controlled directly inside this script, you’d need to compute regression slopes and ATR from price history here instead of loading them.
+
+---
+
+### B) Selection & Rebalance cadence
+- `REBALANCE_DAY = "Wednesday"`  
+  Signals are generated weekly on Wednesday.
+- `TOP_PERCENTILE = 0.95`  
+  Invest in the top 5% of names by slope.
+
+---
+
+### C) Portfolio risk controls
+- `MAX_POSITION_WEIGHT = 0.12`  
+  No single position should exceed 12% of portfolio value (then weights get redistributed).
+
+- `MIN_CASH_RESERVE = 20000.0`  
+  Always keep at least $20k in cash (planning checks + execution checks).
+
+---
+
+### D) SPY regime filter
+- `SPY_REGIME_CONFIRM_DAYS = 1`  
+  How “sticky” the regime is:
+  - `1` = immediate flip when SPY crosses 200DMA
+  - `5+` = must stay above/below for N consecutive days to confirm
+
+**Behavior:**  
+- If SPY is bearish on Wednesday, the system **does not add new exposure** on Thursday (buys are blocked).  
+- Sells/reductions can still happen.
+
+---
+
+### E) Turnover / trade filters (the “don’t churn” rules)
+These three settings control how aggressive rebalancing is:
+
+- `DRIFT_THRESHOLD = 0.05`  
+  Only trade if the **difference between target weight and current weight** is at least 5%.  
+  (Exception: if a position breaches the max cap, it may be forced to trim.)
+
+- `MIN_TRADE_VALUE = 10000`  
+  Skip trades smaller than $10,000 (reduces noise + transaction churn).
+
+- `MIN_NEW_POSITION_WEIGHT = 0.005`  
+  Don’t open brand-new positions unless they would be at least 0.5% of the portfolio.
+
+---
+
+## Outputs (what files you get)
+
+All output is saved under:
+
+- Trades + equity + rankings:  
+  `./13-trading_output_regression_insp500_spyfilter_cap15/`
+
+- Performance summary CSVs:  
+  `./14-trading_output_regression_insp500_spyfilter_performance_output_cap15/`
+
+### 1) Executed trades
+`13-trades_regression_insp500_spyfilter_cap15.parquet`
+
+### 2) Daily equity curve
+`13-equity_curve_regression_insp500_spyfilter_cap15.parquet`
+
+### 3) Weekly rankings (pre-filter)
+`13-weekly_rankings_pre_filter_cap15.parquet`
+
+This one is super useful for research/debugging: it includes **all top-ranked names each week** *before* drift/trade-size/min-weight filters remove anything.
+
+### 4) Performance outputs
+- `14-regression_insp500_spyfilter-performance_summary_cap15.csv`
+- `14-regression_insp500_spyfilter-yearly_comparison_cap15.csv`
+
+Includes CAGR, vol, Sharpe/Sortino, max drawdown, Calmar, plus year-by-year comparison vs SPY.
+
+
+`1-SP500MEMBERSHIPBUILDER.ipynb`
+Builds a daily S&P 500 membership matrix from SHARADAR/SP500 events via Nasdaq Data Link.
+Loads the API key from NASDAQ_DATA_LINK_API_KEY, downloads constituent add/remove events,
+simulates daily membership across all business days in the event range, and saves the full
+membership matrix to Parquet at ./1-sp500_membership_daily_matrix/sp500_membership_full.parquet.
+Also computes membership metadata (first/last/exit/current status), reports recent additions
+and removals, and writes a timestamped diagnostics CSV to system_verification/1-SP500MEMBERSHIPBUILDER.
