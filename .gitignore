@@ -18,6 +18,3 @@ backup.ipynb
 # Ignore all .parquet files
 *.parquet
 
-# But not the Backtesting_Suite folder and its files
-!Backtesting_Suite/
-!Backtesting_Suite/**

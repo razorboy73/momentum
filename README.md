@@ -14,6 +14,8 @@ Each week it:
 4) **Optionally blocks new buying** when the market regime is bearish (SPY below 200DMA),
 5) **Trades only when changes are meaningful** (drift + minimum trade size + minimum new position).
 
+
+
 ---
 
 ## How the strategy works (plain English)
@@ -182,4 +184,71 @@ Computes 20-day ATR from adjusted OHLC parquet files, validating date order and 
 logging issues (missing data, non-monotonic dates, insufficient history, negative TR, ATR spikes)
 to a timestamped CSV in ./system_verification/4-ATR20_adjusted_All_Prices. Reads per-ticker inputs
 from ./3-adjusted_All_Prices_OHLC, writes ATR20-enriched parquet outputs to ./4-ATR20_adjusted_All_Prices.
+
+`4a-Parameter_Sweep_ATRs`
+For use in testing different parameters in the back test 
+Computes multi-window ATR series from adjusted OHLC parquet inputs, sharing one true-range base per ticker,
+and saves per-window outputs under ./4a-Parameter_Sweep_ATRs_adjusted_All_Prices/atr_{W}D. Loads adjusted
+prices from ./3-adjusted_All_Prices_OHLC, validates required columns and date order, flags nonpositive closes,
+insufficient history, and ATR spikes, and writes both combined and per-window validation CSVs in
+./system_verification/4a-Parameter_Sweep_ATRs_adjusted_All_Prices.
+
+
+
+`5-100D_MA_adjusted_all_prices.ipynb`
+
+Not used in the final implementation of my system but it computes 100-day rolling MAs from adjusted close prices for all tickers, validating date order,
+data gaps, nonpositive prices, and insufficient history, then saves MA100-enriched parquet files
+to ./5-100D_MA_adjusted_all_prices. Logs validation issues (missing columns, gaps, nonpositive
+closes, negative MA100, price spikes, processing errors) to a timestamped CSV in
+./system_verification/5-100D_MA_adjusted_all_prices.
+
+`6-90Day_jump_filter_adjusted_all_prices.ipynb`
+90-Day Jump Filter for Momentum Trading System
+
+Not used in the final implementation of the trading system. This script processes adjusted OHLC stock price data and applies a 90-day jump filter
+to identify stocks that are tradable based on price volatility constraints.
+
+Purpose:
+    - Calculate daily percentage changes in adjusted close prices
+    - Compute 90-day rolling maximum absolute percentage changes
+    - Flag stocks with extreme volatility (>15% single-day moves in 90-day window)
+    - Generate validation reports for data quality issues
+
+Trading Rule:
+    A stock is considered tradable (no_big_jump_90 = True) if:
+    1. It has at least 90 days of price history (full rolling window)
+    2. The maximum absolute daily percentage change over the past 90 days is ≤ 15%
+
+Input:
+    - Directory: ./3-adjusted_All_Prices_OHLC
+    - Format: Parquet files with columns: date, close_adj (minimum required)
+
+Output:
+    - Directory: ./6-90Day_jump_filter_adjusted_all_prices
+    - Format: Parquet files with additional columns:
+        * pct_change: Daily percentage change in close_adj
+        * abs_pct: Absolute value of pct_change
+        * abs_rollmax_90: 90-day rolling max of abs_pct
+        * no_big_jump_90: Boolean flag for tradability
+
+Validation:
+    - Directory: ./system_verification/6-90Day_jump_filter_adjusted_all_prices
+    - Format: CSV file with timestamp containing validation issues detected
+
+Validation Checks:
+    - Missing required columns (date, close_adj)
+    - Non-monotonic date sequences
+    - Non-positive adjusted close prices
+    - Extreme daily spikes (>50% single-day moves)
+    - General processing errors
+
+`7-90Day_exp_regression_adjusted_all_prices.ipynb`
+
+
+Runs 90-day rolling log-price regressions on adjusted OHLC parquet files, using Numba to compute
+daily and annualized slopes plus R² for each window. Validates required columns and positive closes,
+skips tickers with insufficient history, saves per-ticker regression outputs to
+./7-90Day_exp_regression_adjusted_all_prices, and logs validation issues to a timestamped CSV in
+./system_verification/7-90Day_exp_regression_adjusted_all_prices.
 
